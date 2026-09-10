@@ -3,12 +3,6 @@
 
 This 4D plugins allows an application to manage Windows Services. Some commands require administrator rights.
 
-##Platform
-
-| carbon | cocoa | win32 | win64 |
-|:------:|:-----:|:---------:|:---------:|
-|🆗|🆗|🚫|🚫|
-
 Commands
 ---
 
