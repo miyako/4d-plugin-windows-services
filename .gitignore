@@ -2,3 +2,5 @@
 *.DS_Store
 
 *.suo
+build/*
+Windows Services.4dbase/userPreferences.*
