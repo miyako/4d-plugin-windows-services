@@ -73,16 +73,16 @@ int _getServiceConfig(LPCTSTR lpServiceName,
 			returnValue = GetLastError();
 		}else{
 			
-			DWORD dwBytesNeeded, cbBufSize;
+			DWORD dwBytesNeeded = 0, cbBufSize = 0;
 			
 			if(!QueryServiceConfig(schService,
 								   NULL,
 								   0,
-								   &dwBytesNeeded)){
+								   &dwBytesNeeded) && GetLastError() == ERROR_INSUFFICIENT_BUFFER){
 				
 				cbBufSize = dwBytesNeeded;
 				
-				std::vector<unsigned int> buf(cbBufSize);
+				std::vector<BYTE> buf(cbBufSize);
 				
 				LPQUERY_SERVICE_CONFIG serviceConfig = (LPQUERY_SERVICE_CONFIG)&buf[0];
 				
@@ -97,12 +97,18 @@ int _getServiceConfig(LPCTSTR lpServiceName,
 					if(dwStartType)
 						*dwStartType = serviceConfig->dwStartType;
 					if(binaryPathName)
-						binaryPathName->setUTF16String((const PA_Unichar *)serviceConfig->lpBinaryPathName, wcslen(serviceConfig->lpBinaryPathName));
+						binaryPathName->setUTF16String((const PA_Unichar *)serviceConfig->lpBinaryPathName,
+														serviceConfig->lpBinaryPathName ? wcslen(serviceConfig->lpBinaryPathName) : 0);
 					if(serviceStartName)
-						serviceStartName->setUTF16String((const PA_Unichar *)serviceConfig->lpServiceStartName, wcslen(serviceConfig->lpServiceStartName));
+						// lpServiceStartName is NULL for drivers running under the I/O manager's default object name
+						serviceStartName->setUTF16String((const PA_Unichar *)serviceConfig->lpServiceStartName,
+														  serviceConfig->lpServiceStartName ? wcslen(serviceConfig->lpServiceStartName) : 0);
 					if(displayName)
-						displayName->setUTF16String((const PA_Unichar *)serviceConfig->lpDisplayName, wcslen(serviceConfig->lpDisplayName));
+						displayName->setUTF16String((const PA_Unichar *)serviceConfig->lpDisplayName,
+													 serviceConfig->lpDisplayName ? wcslen(serviceConfig->lpDisplayName) : 0);
 				}				
+			}else{
+				returnValue = GetLastError();
 			}
 			
 			CloseServiceHandle(schService);	
@@ -206,7 +212,7 @@ int _changeAccess(LPCTSTR lpServiceName){
 				
 				dwSize = dwBytesNeeded;
 				
-				std::vector<unsigned int> buf(dwSize);
+				std::vector<BYTE> buf(dwSize);
 				
 				psd = (PSECURITY_DESCRIPTOR)&buf[0];
 				
@@ -774,7 +780,7 @@ void SERVICE_GET_LIST(sLONG_PTR *pResult, PackagePtr pParams)
 	
 	if(schSCManager){
 		
-		DWORD cbBufSize, cbBytesNeeded, servicesReturned, resumeHandle = 0;
+		DWORD cbBufSize = 0, cbBytesNeeded = 0, servicesReturned = 0, resumeHandle = 0;
 		
 		if(!EnumServicesStatus(schSCManager,
 							   SERVICE_WIN32|SERVICE_DRIVER,
@@ -783,12 +789,12 @@ void SERVICE_GET_LIST(sLONG_PTR *pResult, PackagePtr pParams)
 							   0,
 							   &cbBytesNeeded,
 							   &servicesReturned,
-							   &resumeHandle)){
+							   &resumeHandle) && GetLastError() == ERROR_INSUFFICIENT_BUFFER){
 			
 			
 			cbBufSize = cbBytesNeeded;
 			
-			std::vector<unsigned int> buf(cbBufSize);			
+			std::vector<BYTE> buf(cbBufSize);			
 			
 			LPENUM_SERVICE_STATUS lpServices = (LPENUM_SERVICE_STATUS)&buf[0];
 			
@@ -801,13 +807,14 @@ void SERVICE_GET_LIST(sLONG_PTR *pResult, PackagePtr pParams)
 								  &servicesReturned,
 								  &resumeHandle)){
 				
-				C_TEXT serviceStartName, serviceDisplayName;
-				
 				for(unsigned int i = 0; i < servicesReturned; ++i){
 					
-					DWORD dwStartType;
+					// declared fresh each iteration so a failed lookup below can't silently
+					// carry over the previous service's name/type into this row
+					C_TEXT serviceStartName, serviceDisplayName;
+					DWORD dwStartType = 0;
 					
-					_getServiceConfig(lpServices[i].lpServiceName, 
+					int configErr = _getServiceConfig(lpServices[i].lpServiceName, 
 									  NULL,
 									  &dwStartType,
 									  NULL,
@@ -815,14 +822,26 @@ void SERVICE_GET_LIST(sLONG_PTR *pResult, PackagePtr pParams)
 									  &serviceDisplayName);	
 					
 					names.appendUTF16String((const PA_Unichar *)lpServices[i].lpServiceName);	
-					displayNames.appendUTF16String((const PA_Unichar *)serviceDisplayName.getUTF16StringPtr());				
-					accountNames.appendUTF16String((const PA_Unichar *)serviceStartName.getUTF16StringPtr());
 					states.appendIntValue(lpServices[i].ServiceStatus.dwCurrentState);
-					startTypes.appendIntValue(dwStartType);
+					
+					if(configErr == 0){
+						displayNames.appendUTF16String((const PA_Unichar *)serviceDisplayName.getUTF16StringPtr());				
+						accountNames.appendUTF16String((const PA_Unichar *)serviceStartName.getUTF16StringPtr());
+						startTypes.appendIntValue(dwStartType);
+					}else{
+						// couldn't query this service (e.g. access denied) - keep the row aligned
+						// with an empty name/type rather than reusing the previous row's values
+						displayNames.appendUTF16String((const PA_Unichar *)L"");
+						accountNames.appendUTF16String((const PA_Unichar *)L"");
+						startTypes.appendIntValue(0);
+					}
 					
 				}
 			}			
 		}		
+		
+		CloseServiceHandle(schSCManager);
+		
 	}
 #endif	
 	
