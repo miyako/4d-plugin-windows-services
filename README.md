@@ -24,6 +24,104 @@ Command | Returns | Purpose
 
 **Platforms:** Windows only. The plugin has no macOS implementation — every command is a no-op on macOS (it simply returns without calling any API).
 
+## Manual versioning and publication
+
+The Actions workflows are independent:
+
+1. **Bump version**: select a branch using GitHub's built-in ref selector and choose
+   `patch`, `minor`, or `major`. It validates the exact selected `github.sha`, creates
+   one nonempty, source-only direct-parent commit with the Copilot co-author
+   trailer, and pushes only that commit to that branch. It never tags, releases,
+   builds, or dispatches another workflow. A selected tag or moved branch is rejected.
+2. **Build**: select the desired source ref using the built-in selector. There are
+   **no custom inputs**. Every checkout uses the dispatch's immutable `github.sha`;
+   validated source metadata supplies `X.Y.Z`, `vX.Y.Z`, and the
+   `Windows Services-X.Y.Z.zip` / `.dmg` asset names. Build is manual-only, without
+   branch restrictions or tag-push/PR triggers. Publication uses a constant,
+   cross-ref concurrency group with cancellation disabled.
+
+### Source authority and intake repair
+
+The original committed Bump header explicitly promised coordinated
+`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, and source plist versions. That
+contract takes precedence over its buggy marketing-first/fallback implementation.
+Rename-follow history reaches the workflow's addition at `e53973a`; the subsequent
+`3d701e1` and `53f4b92` bumps changed marketing/plist values but left current and
+localization stale. This migration **does not increment** the intake `1.0.2`.
+It narrowly repairs six source `CURRENT_PROJECT_VERSION = 1.0.0` assignments and the
+two source localized `1.0` display tokens to the existing `1.0.2` authority.
+
+Only these three source files participate in subsequent bumps:
+
+- `Windows Services.xcodeproj/project.pbxproj`: all six assignments per version
+  key must resolve to one canonical `X.Y.Z` (no leading zeroes, suffixes, or drift).
+- `Info.plist`: `CFBundleShortVersionString` is **required**;
+  `CFBundleVersion` alone is optional and is never added when absent. Present
+  literals must match and co-bump. Supported `$(MARKETING_VERSION)`,
+  `${MARKETING_VERSION}`, `$(CURRENT_PROJECT_VERSION)`, and
+  `${CURRENT_PROJECT_VERSION}` references remain references; unresolved or cyclic
+  references fail.
+- `English.lproj/InfoPlist.strings`: both display-version fields co-bump, retaining
+  the product name, copyright, UTF-16 endianness/BOM, and each original line ending.
+  Project/plist BOMs, quoting, spacing, mixed CRLF/CR/LF endings and file modes are
+  also preserved. Duplicate, missing, malformed, or drifted metadata fails before
+  any writes, including quoted/unquoted same-line project duplicates.
+
+Committed prebuilt bundles/localizations, Windows payloads, resource/dependency
+files, `locversion.plist`, and all 4D database/schema counters are not version
+authority and are untouched by Bump.
+
+The mandatory executable `.github/scripts/bump-hooks/pre-push` is checked both
+before preparation and immediately before push. It checks Git's advertised old
+SHA/ref, literal new SHA/HEAD and single direct parent, and exactly one update;
+even an already-identical result is rejected. Push is nonforce, with both
+`push.followTags=false` and `--no-follow-tags`. A race stops without retry.
+
+### Native gates and create-only recovery
+
+The existing pipeline still builds Windows `Release|x64` with its v143 / Windows
+SDK 10.0 command-line overrides, then macOS `Default`, `arm64 x86_64`, with the
+existing deployment target override `11.0`. Project configurations, Carbon/Cocoa
+frameworks, Rez/resource phases, output directories, and secret names are retained.
+Only generated executables, plist/localization, signatures and intermediates are
+invalidated; committed resources, Windows companion payloads and dependencies
+remain. Windows requires the exact vcxproj output and exact downloaded artifact,
+never a recursive first match. macOS requires exact architecture tokens (not
+`arm64e`/`x86_64h` substitutes), selected-source built plist/localization including
+XML/binary plist and UTF-16 strings, Developer ID signing and strict verification.
+Both ZIP and DMG notarization commands must succeed **and** return JSON `Accepted`;
+DMG stapling must then succeed before publication.
+
+Before native work and again after all native gates, authenticated, fully
+paginated release lists (including drafts) and the exact remote tag must show
+absence. Authentication, 404, network, malformed response, and later-page errors
+stop publication. Publication separately POSTs a **new** tag ref at the selected
+SHA, verifies it remotely, POSTs a **new public, non-prerelease** release with the
+original empty notes body, and uploads each exact asset only to that newly returned
+release ID. It never reuses, edits, deletes, clobbers, rolls back, or retries remote
+state.
+
+If tag creation, release creation, or an upload fails (including an ambiguous
+response), **retain all partial state**. Inspect the reported tag/SHA, release ID,
+drafts, and uploaded asset names in GitHub before taking any separate maintainer
+action. Do not rerun Build expecting it to repair the release: an existing tag or
+release intentionally blocks it, including a same-SHA tag. For a new publication,
+use a separately reviewed Bump and new version; disposition of partial state is a
+manual maintainer decision. If Bump rejects a moved branch, inspect that branch
+and dispatch a fresh Bump from the desired commit instead of forcing/retrying.
+
+Offline checks (no native compilation, signing, notarization, 4D, or GitHub writes):
+
+```sh
+actionlint
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/tests -v
+```
+
+The suite uses source-derived fixtures, local bare Git origins with real
+advertisement races, fake GitHub APIs, and literal workflow shell blocks with a
+closed PATH of native-tool stubs. PowerShell (`pwsh`) is needed for the Windows
+shell fixtures; do not treat a skipped Windows harness as full verification.
+
 ---
 
 ## Requirements & platform notes
