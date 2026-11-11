@@ -110,7 +110,7 @@ use a separately reviewed Bump and new version; disposition of partial state is 
 manual maintainer decision. If Bump rejects a moved branch, inspect that branch
 and dispatch a fresh Bump from the desired commit instead of forcing/retrying.
 
-Offline checks (no native compilation, signing, notarization, 4D, or GitHub writes):
+Checks (isolated native ownership compilation, no signing, notarization, 4D, or GitHub writes):
 
 ```sh
 actionlint
@@ -121,6 +121,29 @@ The suite uses source-derived fixtures, local bare Git origins with real
 advertisement races, fake GitHub APIs, and literal workflow shell blocks with a
 closed PATH of native-tool stubs. PowerShell (`pwsh`) is needed for the Windows
 shell fixtures; do not treat a skipped Windows harness as full verification.
+
+## Native ownership regression
+
+The bundled picture helpers now keep a single owner for file-path arguments,
+retain picture outputs before clearing callback variables, and release picture
+creation references after retaining them. Shallow copying of the eight remaining
+raw-pointer-owning wrapper classes is disabled, following the existing `C_TEXT`
+pattern; value-owning/scalar wrappers remain copyable. These are latent helper
+defects, not a reproduced service-command crash.
+
+On macOS, run the isolated, unsigned sanitizer harness:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 .github/tests/test_ownership.py
+```
+
+It compiles the complete unchanged SDK, all 13 wrapper translation units, and
+actual Mac and synthetic Windows-conditional consumers. Engine callbacks and
+SCM/service operations use only in-memory fixtures or fail-closed stubs. It does
+not build the plugin project, access real services, sign, package, install, or
+publish anything. The separate **Ownership regression** workflow runs this
+standard-library-only check on relevant pushes to `master` and the audit branch.
+See [the ownership inventory, contracts, results, and limits](.github/tests/ownership-audit.md).
 
 ---
 

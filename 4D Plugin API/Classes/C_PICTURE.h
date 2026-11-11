@@ -61,6 +61,8 @@ extern "C" {
 		
 		CPicture();	
 		~CPicture();
+		CPicture(const CPicture&) = delete;
+		CPicture& operator=(const CPicture&) = delete;
 		
 	};
 	
@@ -97,6 +99,8 @@ extern "C" {
 		
 		C_PICTURE();
 		~C_PICTURE();
+		C_PICTURE(const C_PICTURE&) = delete;
+		C_PICTURE& operator=(const C_PICTURE&) = delete;
 		
 	};
 	

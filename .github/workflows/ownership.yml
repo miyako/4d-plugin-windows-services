@@ -1,0 +1,31 @@
+name: Ownership regression
+
+on:
+  push:
+    branches: [miyako-windows-services-ownership, master]
+    paths:
+      - '4D Plugin API/**'
+      - '4DPlugin.cpp'
+      - '4DPlugin.h'
+      - 'functions_wnds.cpp'
+      - 'functions_wnds.h'
+      - '.github/tests/ownership*'
+      - '.github/tests/aclapi.h'
+      - '.github/tests/test_ownership.py'
+      - '.github/tests/test_repository_contract.py'
+      - '.github/workflows/ownership.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ownership:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Full SDK and synthetic consumers under ASan and UBSan
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 .github/tests/test_ownership.py

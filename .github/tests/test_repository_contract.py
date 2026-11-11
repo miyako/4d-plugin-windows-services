@@ -71,6 +71,12 @@ class RepositoryContractTests(unittest.TestCase):
         ).splitlines()
         allowed = {*map(str, source.SOURCE_PATHS), "README.md",
                    ".github/workflows/bump-version.yml", ".github/workflows/release.yml"}
+        # These surgical wrapper changes have their own immutable-baseline
+        # inventory, preservation, and actual-source ownership regressions.
+        allowed.update("4D Plugin API/Classes/" + name for name in (
+            "ARRAY_BOOLEAN.h", "ARRAY_INTEGER.h", "ARRAY_LONGINT.h", "ARRAY_REAL.h",
+            "ARRAY_TEXT.h", "C_BLOB.h", "C_PICTURE.h", "C_PICTURE.cpp",
+        ))
         for name in paths:
             if name in allowed:
                 continue
