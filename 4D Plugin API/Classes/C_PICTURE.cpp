@@ -115,33 +115,33 @@ void CPicture::fromFileAtPath(CUTF8String *pFilePath)
 	C_TEXT filePath;
 	filePath.setUTF8String(pFilePath);
 	
-	PA_Unistring _path = PA_CreateUnistring((PA_Unichar *)filePath.getUTF16StringPtr());
-	
 	PA_Variable args[2];
 	args[0] = PA_CreateVariable(eVK_Unistring);
-	PA_SetStringVariable(&args[0], &_path);
+	PA_SetUnistring(&args[0].uValue.fString, (PA_Unichar *)filePath.getUTF16StringPtr());
 	args[1] = PA_CreateVariable(eVK_Picture);
 	
 	PA_ExecuteCommandByID(678, args, 2);
 	
 	PA_Picture p = PA_GetPictureVariable(args[1]);
 	
-	PA_DisposeUnistring(&_path);
-	
 	PA_ClearVariable(&args[0]);
 	
 	setPicture(p);
 	
-//	PA_ClearVariable(&args[1]);	
-//	belongs to 4D? should not release
+	PA_ClearVariable(&args[1]);
 	
 }
 
 void CPicture::setBytes(const uint8_t *bytes, uint32_t len)
 {
 	PA_Picture p = PA_CreatePicture((void *)bytes, len);
-	
-	setPicture(p);	
+	PA_ErrorCode err = PA_GetLastError();
+
+	if(err == eER_NoErr)
+	{
+		setPicture(p);
+		PA_DisposePicture(p);
+	}
 }
 
 const uint8_t *CPicture::getBytesPtr(CUTF8String *pType)
@@ -236,7 +236,7 @@ void CPicture::convertToGreyScale()
 	p = PA_DuplicatePicture(this->_CPicture, Retain_only);
 	
 	PA_Variable params[2];
-	params[0] = PA_CreateVariable(eVK_Picture);
+	params[0] = PA_CreateVariable(eVK_Undefined);
 	PA_SetPictureVariable(&params[0], p);
 	params[1] = PA_CreateVariable(eVK_Longint);
 	PA_SetLongintVariable(&params[1], Fade_to_grey_scale);
@@ -254,7 +254,7 @@ void CPicture::getSize(unsigned int *width, unsigned int *height)
 {
 	PA_Variable args[3];
 	
-	args[0] = PA_CreateVariable(eVK_Picture);
+	args[0] = PA_CreateVariable(eVK_Undefined);
 	args[1] = PA_CreateVariable(eVK_Longint);		
 	args[2] = PA_CreateVariable(eVK_Longint);	
 	
@@ -279,7 +279,7 @@ PA_Picture CPicture::createThumbnail(unsigned int width, unsigned int height)
 	PA_Picture p;
 	PA_Variable args[4];
 	
-	args[0] = PA_CreateVariable(eVK_Picture);
+	args[0] = PA_CreateVariable(eVK_Undefined);
 	args[1] = PA_CreateVariable(eVK_Picture);	
 	args[2] = PA_CreateVariable(eVK_Longint);		
 	args[3] = PA_CreateVariable(eVK_Longint);	
